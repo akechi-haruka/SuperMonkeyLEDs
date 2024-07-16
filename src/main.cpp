@@ -7,6 +7,10 @@
 
 #define NUM_LEDS 66
 struct CRGB leds[NUM_LEDS];
+#define LED_OFF 0xFF
+#define LED_ON 0xFE
+
+#define DELAY 5
 
 #define UNKNOWN_IS_OK 1
 
@@ -16,6 +20,7 @@ static const char* CHIP_NUM = "6710 ";
 static const uint8_t FIRMWARE_VERSION = 0xFF;
 
 static uint16_t setting_timeout = 0;
+static int32_t timeout_counter = 0;
 static uint16_t setting_led_count = 66;
 static bool setting_disable_resp = false;
 
@@ -53,14 +58,17 @@ void led_timeout(jvs_req_any *req, jvs_resp_any *resp) {
     *(resp->payload + 1) = req->payload[1];
 }
 
+void wipe_leds(){
+    memset(&leds, 0, sizeof(CRGB) * NUM_LEDS);
+    FastLED.show();
+}
+
 void led_reset(jvs_req_any *req, jvs_resp_any *resp) {
     setting_timeout = 0;
     setting_disable_resp = false;
     setting_led_count = 66;
 
-    memcpy(&leds, 0, sizeof(CRGB) * NUM_LEDS);
-
-    FastLED.show();
+    wipe_leds();
 }
 
 void led_get_board_status(jvs_req_any *req, jvs_resp_any *resp) {
@@ -82,9 +90,19 @@ void led_disable_response(jvs_req_any *req, jvs_resp_any *resp) {
 
 void led_set(jvs_req_any *req, jvs_resp_any *resp) {
 
-    for (uint32_t i = 3; i - 3 < req->len - 1 && i - 3 < setting_led_count; i+=3){
-        uint8_t j = translation_table[i - 3];
-        leds[j].setRGB(req->payload[i], req->payload[i + 1], req->payload[i + 2]);
+    for (uint32_t i = 0; i < sizeof(translation_table) && i < setting_led_count; i++){
+        uint8_t translation = translation_table[i];
+        if (translation == LED_OFF){
+            leds[i].setRGB(0, 0, 0);
+        } else if (translation == LED_ON){
+            leds[i].setRGB(255, 255, 255);
+        } else {
+            uint8_t input_offset = translation * 3;
+            if (input_offset < req->len - 3) {
+                leds[i].setRGB(req->payload[input_offset], req->payload[input_offset + 1],
+                               req->payload[input_offset + 2]);
+            }
+        }
     }
 
     FastLED.show();
@@ -116,8 +134,16 @@ void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
 }
 
 void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
+
+    memset(translation_table, LED_OFF, sizeof(translation_table));
+
     for (uint32_t i = 0; i < sizeof(translation_table) && i < req->len - 1; i++){
-        translation_table[i] = req->payload[i];
+        uint8_t val = req->payload[i];
+        if (val < NUM_LEDS || val == LED_ON) {
+            translation_table[i] = val;
+        } else {
+            translation_table[i] = LED_OFF;
+        }
     }
 }
 
@@ -186,7 +212,15 @@ void loop() {
         }
 
         jvs_write_packet(&resp);
+
+        timeout_counter = setting_timeout;
     }
 
-    delay(1);
+    if (setting_timeout > 0 && timeout_counter > 0) {
+        timeout_counter -= DELAY;
+        if (timeout_counter < 0) {
+            wipe_leds();
+        }
+    }
+    delay(DELAY);
 }
