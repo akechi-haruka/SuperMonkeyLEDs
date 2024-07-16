@@ -82,7 +82,7 @@ void led_disable_response(jvs_req_any *req, jvs_resp_any *resp) {
 
 void led_set(jvs_req_any *req, jvs_resp_any *resp) {
 
-    for (uint32_t i = 3; i < req->len && i - 3 < setting_led_count; i+=3){
+    for (uint32_t i = 3; i - 3 < req->len - 1 && i - 3 < setting_led_count; i+=3){
         uint8_t j = translation_table[i - 3];
         leds[j].setRGB(req->payload[i], req->payload[i + 1], req->payload[i + 2]);
     }
@@ -116,7 +116,7 @@ void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
 }
 
 void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
-    for (uint32_t i = 0; i < sizeof(translation_table) && i < req->len - 3; i++){
+    for (uint32_t i = 0; i < sizeof(translation_table) && i < req->len - 1; i++){
         translation_table[i] = req->payload[i];
     }
 }
