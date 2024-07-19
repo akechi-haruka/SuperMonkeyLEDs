@@ -50,10 +50,11 @@ HRESULT jvs_encode(const uint8_t *in, uint32_t inlen, uint8_t *out, uint32_t *ou
 }
 
 HRESULT serial_read_single_byte(uint8_t* ptr){
+    while (Serial.available() == 0);
     int r = Serial.read();
     if (r == -1){
         dprintf(NAME ": Stream was empty\n");
-        return HRESULT_FROM_WIN32(E_FAIL);
+        return E_FAIL;
     }
     *ptr = (uint8_t)r;
     return S_OK;
@@ -64,7 +65,7 @@ HRESULT jvs_decoding_read(uint8_t *out, uint32_t *outlen){
         return E_HANDLE;
     }
 
-    const uint32_t len_byte_offset = 1;
+    const uint32_t len_byte_offset = 3;
     uint8_t checksum = 0;
     uint32_t offset = 0;
     int bytes_left = COMM_BUF_SIZE;
@@ -80,7 +81,7 @@ HRESULT jvs_decoding_read(uint8_t *out, uint32_t *outlen){
         uint8_t byte = *(out + offset);
 
         if (offset == len_byte_offset){
-            bytes_left = byte - 1;
+            bytes_left = byte;
         }
 
         if (offset == 0){
@@ -167,7 +168,7 @@ HRESULT jvs_write_packet(struct jvs_resp_any* resp) {
     uint8_t out[255];
     uint32_t outlen = 255;
 
-    hr = jvs_encode((uint8_t*)resp, resp->len + 5, out, &outlen);
+    hr = jvs_encode((uint8_t*)resp, resp->len + 3, out, &outlen);
     if (FAILED(hr)){
         return hr;
     }
@@ -177,7 +178,7 @@ HRESULT jvs_write_packet(struct jvs_resp_any* resp) {
     return S_OK;
 }
 
-HRESULT jvs_write_failure(HRESULT hr, struct jvs_req_any* req){
+HRESULT jvs_write_failure(HRESULT hr, int report, struct jvs_req_any* req){
 
     struct jvs_resp_any resp = {0};
     resp.dest = req->src;
@@ -185,7 +186,7 @@ HRESULT jvs_write_failure(HRESULT hr, struct jvs_req_any* req){
     resp.cmd = req->cmd;
     resp.len = 3;
     resp.status = 2;
-    resp.report = 1;
+    resp.report = report;
     if (hr == E_NOT_SUFFICIENT_BUFFER){
         resp.status = 6;
     } else if (hr == HRESULT_FROM_WIN32(ERROR_DATA_CHECKSUM_ERROR)){
@@ -193,9 +194,16 @@ HRESULT jvs_write_failure(HRESULT hr, struct jvs_req_any* req){
     } else if (hr == E_FAIL){
         resp.status = 4;
     } else if (hr == E_NOTIMPL){
-        resp.status = 1;
-        resp.report = 3;
+        resp.status = 8;
+    } else if (hr < 255){
+        resp.status = 7;
+        resp.report = hr;
     }
+    resp.len += 4;
+    resp.payload[0] = req->dest;
+    resp.payload[1] = req->src;
+    resp.payload[2] = req->len;
+    resp.payload[3] = req->cmd;
 
     return jvs_write_packet(&resp);
 }

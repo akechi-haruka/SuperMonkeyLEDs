@@ -5,16 +5,21 @@
 #include "hresult.h"
 #include "led.h"
 
+/// CONFIGURATION START
 #define NUM_LEDS 66
+#define LED_PIN 7
+#define LED_BRIGHTNESS 32
+#define LED_BOARD WS2812B
+/// CONFIGURATION END
+
+
 struct CRGB leds[NUM_LEDS];
 #define LED_OFF 0xFF
 #define LED_ON 0xFE
 
 #define DELAY 5
 
-#define UNKNOWN_IS_OK 1
-
-#define LED_PIN 6
+#define UNKNOWN_IS_OK 0
 static const char* BOARD_NAME = "MONKEY06";
 static const char* CHIP_NUM = "6710 ";
 static const uint8_t FIRMWARE_VERSION = 0xFF;
@@ -29,6 +34,7 @@ static uint16_t setting_fw_sum = 0xFFFF;
 
 void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 16;
+    resp->report + 1;
     strcpy((char*)resp->payload, BOARD_NAME);
     *(resp->payload + 8) = 0x0A;
     strcpy((char*)resp->payload + 9, CHIP_NUM);
@@ -149,13 +155,27 @@ void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
 
 void setup() {
 
+    CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS);
+    FastLED.setBrightness(LED_BRIGHTNESS);
+
+    leds[0] = CRGB::Red;
+    FastLED.show();
+    delay(1000);
+
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         translation_table[i] = i;
     }
 
-    Serial.begin(115200);
+    leds[0] = CRGB::Yellow;
+    FastLED.show();
+    delay(1000);
 
-    CFastLED::addLeds<WS2812B, LED_PIN>(leds, NUM_LEDS);
+    Serial.begin(115200);
+    Serial.dtr()
+
+    leds[0] = CRGB::Green;
+    FastLED.show();
+    delay(1000);
 
 }
 
@@ -167,11 +187,13 @@ void loop() {
         jvs_resp_any resp = {0};
         HRESULT hr = jvs_read_packet(&req);
         if (FAILED(hr)){
-            jvs_write_failure(hr, &req);
+            jvs_write_failure(hr, 25, &req);
+            return;
         }
 
         resp.src = req.dest;
         resp.dest = req.src;
+        resp.cmd = req.cmd;
         resp.len = 3;
         resp.status = 1;
         resp.report = 1;
@@ -192,9 +214,6 @@ void loop() {
             led_disable_response(&req, &resp);
         } else if (req.cmd == LED_CMD_SET_LED){
             led_set(&req, &resp);
-            if (setting_disable_resp) {
-                return;
-            }
         } else if (req.cmd == LED_CMD_SET_COUNT){
             led_set_count(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_RESET){
@@ -206,12 +225,14 @@ void loop() {
         } else {
 #if UNKNOWN_IS_OK
 #else
-            jvs_write_failure(E_NOTIMPL, &req);
+            jvs_write_failure(E_NOTIMPL, req.cmd, &req);
             return;
 #endif
         }
 
-        jvs_write_packet(&resp);
+        if (!setting_disable_resp) {
+            jvs_write_packet(&resp);
+        }
 
         timeout_counter = setting_timeout;
     }

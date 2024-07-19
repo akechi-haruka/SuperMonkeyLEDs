@@ -22,4 +22,4 @@ struct __attribute__((__packed__)) jvs_resp_any {
 
 HRESULT jvs_read_packet(struct jvs_req_any* req);
 HRESULT jvs_write_packet(struct jvs_resp_any* resp);
-HRESULT jvs_write_failure(HRESULT hr, struct jvs_req_any* req);
+HRESULT jvs_write_failure(HRESULT hr, int report, struct jvs_req_any* req);
