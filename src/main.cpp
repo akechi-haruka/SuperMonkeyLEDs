@@ -31,6 +31,7 @@ static bool setting_disable_resp = false;
 
 static uint8_t translation_table[66];
 static uint16_t setting_fw_sum = 0xFFFF;
+static uint8_t setting_channels[3];
 
 void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 16;
@@ -105,8 +106,8 @@ void led_set(jvs_req_any *req, jvs_resp_any *resp) {
         } else {
             uint8_t input_offset = translation * 3;
             if (input_offset < req->len - 3) {
-                leds[i].setRGB(req->payload[input_offset], req->payload[input_offset + 1],
-                               req->payload[input_offset + 2]);
+                leds[i].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
+                               req->payload[input_offset + setting_channels[2]]);
             }
         }
     }
@@ -137,6 +138,9 @@ void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         translation_table[i] = i;
     }
+    setting_channels[0] = 0;
+    setting_channels[1] = 1;
+    setting_channels[2] = 2;
 }
 
 void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
@@ -153,6 +157,12 @@ void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
     }
 }
 
+void led_set_channels(jvs_req_any *req, jvs_resp_any *resp) {
+    for (int i = 0; i < 3; i++){
+        setting_channels[i] = req->payload[i];
+    }
+}
+
 void setup() {
 
     CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS);
@@ -160,21 +170,25 @@ void setup() {
 
     leds[0] = CRGB::Red;
     FastLED.show();
-    delay(1000);
+    delay(100);
 
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         translation_table[i] = i;
     }
 
+    setting_channels[0] = 0;
+    setting_channels[1] = 1;
+    setting_channels[2] = 2;
+
     leds[0] = CRGB::Yellow;
     FastLED.show();
-    delay(1000);
+    delay(100);
 
     Serial.begin(115200);
 
     leds[0] = CRGB::Green;
     FastLED.show();
-    delay(1000);
+    delay(100);
 
 }
 
@@ -221,6 +235,8 @@ void loop() {
             led_set_sum(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_TRANSLATION){
             led_set_translation(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_CHANNELS){
+            led_set_channels(&req, &resp);
         } else {
 #if UNKNOWN_IS_OK
 #else
