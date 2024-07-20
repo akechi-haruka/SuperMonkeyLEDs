@@ -8,7 +8,8 @@
 /// CONFIGURATION START
 #define NUM_LEDS 66
 #define LED_PIN 7
-#define LED_BRIGHTNESS 32
+#define LED_BRIGHTNESS 5
+#define MAX_CURRENT 750
 #define LED_BOARD WS2812B
 /// CONFIGURATION END
 
@@ -166,7 +167,8 @@ void led_set_channels(jvs_req_any *req, jvs_resp_any *resp) {
 void setup() {
 
     CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS);
-    FastLED.setBrightness(LED_BRIGHTNESS);
+    //FastLED.setBrightness(LED_BRIGHTNESS);
+    FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_CURRENT);
 
     leds[0] = CRGB::Red;
     FastLED.show();

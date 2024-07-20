@@ -18,6 +18,7 @@ Default is Pin 7 and a WS2812B. Technically you can use everything FastLED suppo
 /// CONFIGURATION START
 #define NUM_LEDS 66
 #define LED_PIN 7
-#define LED_BRIGHTNESS 32
+#define LED_BRIGHTNESS 5
+#define MAX_CURRENT 750
 #define LED_BOARD WS2812B
 /// CONFIGURATION END
