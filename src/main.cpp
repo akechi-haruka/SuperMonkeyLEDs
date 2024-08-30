@@ -4,6 +4,7 @@
 #include "jvs.h"
 #include "hresult.h"
 #include "led.h"
+#include "avr/wdt.h"
 
 /// CONFIGURATION START
 #define NUM_LEDS 66
@@ -30,13 +31,13 @@ static int32_t timeout_counter = 0;
 static uint16_t setting_led_count = 66;
 static bool setting_disable_resp = false;
 
-static uint8_t translation_table[66];
+static uint8_t translation_table[NUM_LEDS];
 static uint16_t setting_fw_sum = 0xFFFF;
 static uint8_t setting_channels[3];
 
 void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 16;
-    resp->report + 1;
+    resp->report = 1;
     strcpy((char*)resp->payload, BOARD_NAME);
     *(resp->payload + 8) = 0x0A;
     strcpy((char*)resp->payload + 9, CHIP_NUM);
@@ -122,15 +123,13 @@ void led_set_count(jvs_req_any *req, jvs_resp_any *resp) {
     setting_led_count = req->payload[0];
 
     resp->len += 1;
-    *(resp->payload) = req->payload[0];
+    *(resp->payload) = min(req->payload[0], NUM_LEDS);
 }
 
 void led_set_sum(jvs_req_any *req, jvs_resp_any *resp) {
 
-    setting_led_count = req->payload[0];
+    setting_fw_sum = req->payload[0] << 8 | req->payload[1];
 
-    resp->len += 1;
-    *(resp->payload) = req->payload[0];
 }
 
 void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
@@ -139,8 +138,8 @@ void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         translation_table[i] = i;
     }
-    setting_channels[0] = 0;
-    setting_channels[1] = 1;
+    setting_channels[0] = 1;
+    setting_channels[1] = 0;
     setting_channels[2] = 2;
 }
 
@@ -148,7 +147,7 @@ void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
 
     memset(translation_table, LED_OFF, sizeof(translation_table));
 
-    for (uint32_t i = 0; i < sizeof(translation_table) && i < req->len - 1; i++){
+    for (uint32_t i = 0; i < sizeof(translation_table) && i < (uint32_t)(req->len - 1); i++){
         uint8_t val = req->payload[i];
         if (val < NUM_LEDS || val == LED_ON) {
             translation_table[i] = val;
@@ -178,8 +177,8 @@ void setup() {
         translation_table[i] = i;
     }
 
-    setting_channels[0] = 0;
-    setting_channels[1] = 1;
+    setting_channels[0] = 1;
+    setting_channels[1] = 0;
     setting_channels[2] = 2;
 
     leds[0] = CRGB::Yellow;
@@ -192,9 +191,12 @@ void setup() {
     FastLED.show();
     delay(100);
 
+    wdt_enable(WDTO_4S);
 }
 
 void loop() {
+
+    wdt_reset();
 
     if (Serial.available() > 0){
 
