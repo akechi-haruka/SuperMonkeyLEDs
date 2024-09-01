@@ -22,9 +22,9 @@ struct CRGB leds[NUM_LEDS];
 #define DELAY 5
 
 #define UNKNOWN_IS_OK 0
-static const char* BOARD_NAME = "MONKEY06";
-static const char* CHIP_NUM = "6710 ";
-static const uint8_t FIRMWARE_VERSION = 0xFF;
+
+#define BOARD_NAME_LEN 8
+#define CHIP_NUM_LEN 5
 
 static uint16_t setting_timeout = 0;
 static int32_t timeout_counter = 0;
@@ -33,16 +33,33 @@ static bool setting_disable_resp = false;
 
 static uint8_t translation_table[NUM_LEDS];
 static uint16_t setting_fw_sum = 0xFFFF;
+static char board_name[BOARD_NAME_LEN];
+static char chip_num[CHIP_NUM_LEN];
+static uint16_t setting_fw_ver = 0xFF;
 static uint8_t setting_channels[3];
+
+void reset_monkey(){
+    strncpy(chip_num, "6710 ", CHIP_NUM_LEN);
+    strncpy(board_name, "MONKEY06", BOARD_NAME_LEN);
+    setting_fw_sum = 0xFFFF;
+    setting_fw_ver = 0xFF;
+
+    for (uint32_t i = 0; i < sizeof(translation_table); i++){
+        translation_table[i] = i;
+    }
+    setting_channels[0] = 1;
+    setting_channels[1] = 0;
+    setting_channels[2] = 2;
+}
 
 void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 16;
     resp->report = 1;
-    strcpy((char*)resp->payload, BOARD_NAME);
+    strcpy((char*)resp->payload, board_name);
     *(resp->payload + 8) = 0x0A;
-    strcpy((char*)resp->payload + 9, CHIP_NUM);
+    strcpy((char*)resp->payload + 9, chip_num);
     *(resp->payload + 14) = 0xFF;
-    *(resp->payload + 15) = FIRMWARE_VERSION;
+    *(resp->payload + 15) = setting_fw_ver;
 }
 
 void led_get_firm_sum(jvs_req_any *req, jvs_resp_any *resp) {
@@ -128,19 +145,32 @@ void led_set_count(jvs_req_any *req, jvs_resp_any *resp) {
 
 void led_set_sum(jvs_req_any *req, jvs_resp_any *resp) {
 
-    setting_fw_sum = req->payload[0] << 8 | req->payload[1];
+    setting_fw_sum = (req->payload[1] << 8) | req->payload[0];
+
+}
+
+void led_set_chip(jvs_req_any *req, jvs_resp_any *resp) {
+
+    memset(chip_num, 0, CHIP_NUM_LEN);
+    memcpy(chip_num, req->payload, min(req->len - 2, CHIP_NUM_LEN));
+
+}
+
+void led_set_fw_ver(jvs_req_any *req, jvs_resp_any *resp) {
+
+    setting_fw_ver = req->payload[0];
+
+}
+
+void led_set_board_name(jvs_req_any *req, jvs_resp_any *resp) {
+
+    memset(board_name, ' ', BOARD_NAME_LEN);
+    memcpy(board_name, req->payload, min(req->len - 2, BOARD_NAME_LEN));
 
 }
 
 void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
-    setting_fw_sum = 0xFFFF;
-
-    for (uint32_t i = 0; i < sizeof(translation_table); i++){
-        translation_table[i] = i;
-    }
-    setting_channels[0] = 1;
-    setting_channels[1] = 0;
-    setting_channels[2] = 2;
+    reset_monkey();
 }
 
 void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
@@ -177,9 +207,7 @@ void setup() {
         translation_table[i] = i;
     }
 
-    setting_channels[0] = 1;
-    setting_channels[1] = 0;
-    setting_channels[2] = 2;
+    reset_monkey();
 
     leds[0] = CRGB::Yellow;
     FastLED.show();
@@ -237,6 +265,12 @@ void loop() {
             led_reset_monkey(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_SUM){
             led_set_sum(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_CHIP){
+            led_set_chip(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_FW_VER){
+            led_set_fw_ver(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_BOARD_NAME){
+            led_set_board_name(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_TRANSLATION){
             led_set_translation(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_CHANNELS){
@@ -249,7 +283,7 @@ void loop() {
 #endif
         }
 
-        if (!setting_disable_resp) {
+        if (!setting_disable_resp || req.cmd == LED_CMD_DISABLE_RESPONSE) {
             jvs_write_packet(&resp);
         }
 
