@@ -53,13 +53,15 @@ void reset_monkey(){
 }
 
 void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
-    resp->len += 16;
+    resp->len += 18;
     resp->report = 1;
     strcpy((char*)resp->payload, board_name);
     *(resp->payload + 8) = 0x0A;
     strcpy((char*)resp->payload + 9, chip_num);
     *(resp->payload + 14) = 0xFF;
     *(resp->payload + 15) = setting_fw_ver;
+    *(resp->payload + 16) = 0;
+    *(resp->payload + 17) = 204;
 }
 
 void led_get_firm_sum(jvs_req_any *req, jvs_resp_any *resp) {

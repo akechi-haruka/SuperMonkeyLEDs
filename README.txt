@@ -84,3 +84,4 @@ Chrono Regalia (Terminal): sega835cmd led --monkey-reset --set-monkey-board-name
 FGO: sega835cmd led --set-monkey-translation 13,13,13,13,13,13,13,13,3,3,3,3,3,3,3,3,19,19,19,19,19,19,19,19,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64 0,0,0
 SAOAC:DE: sega835cmd led --set-monkey-translation 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 0,0,0
 Synchronica: sega835cmd led --monkey-reset --set-monkey-translation 53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0 0,0,0
+Kemono Friends 3: sega835cmd led --monkey-reset --set-monkey-checksum 43603 --set-monkey-version 160 --set-monkey-board-name 15093-04 --set-monkey-chip-number 6704 0,0,0
