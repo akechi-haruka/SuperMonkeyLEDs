@@ -12,13 +12,21 @@
 #define LED_BRIGHTNESS 5
 #define MAX_CURRENT 750
 #define LED_BOARD WS2812B
+
+#define AUX1_IS_STRIP 1
+#define AUX1_LED_BOARD WS2812B
+#define AUX1_NUM_LEDS 4
+#define AUX1_MAX_CURRENT 40
+#define AUX1_OUTPUT_PIN 6
 /// CONFIGURATION END
 
 
 struct CRGB leds[NUM_LEDS];
+struct CRGB leds_aux1[AUX1_NUM_LEDS];
 #define LED_OFF 0xFF
 #define LED_ON 0xFE
 
+#define JVS_MAX_LEDS 66
 #define DELAY 5
 
 #define UNKNOWN_IS_OK 0
@@ -28,7 +36,7 @@ struct CRGB leds[NUM_LEDS];
 
 static uint16_t setting_timeout = 0;
 static int32_t timeout_counter = 0;
-static uint16_t setting_led_count = 66;
+static uint16_t setting_led_count = JVS_MAX_LEDS;
 static bool setting_disable_resp = false;
 
 static uint8_t translation_table[NUM_LEDS];
@@ -88,13 +96,18 @@ void led_timeout(jvs_req_any *req, jvs_resp_any *resp) {
 
 void wipe_leds(){
     memset(&leds, 0, sizeof(CRGB) * NUM_LEDS);
+#if AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0
+    memset(&leds_aux1, 0, sizeof(CRGB) * AUX1_NUM_LEDS);
+#elif AUX1_OUTPUT_PIN > 0
+    digitalWrite(AUX1_OUTPUT_PIN, LOW);
+#endif
     FastLED.show();
 }
 
 void led_reset(jvs_req_any *req, jvs_resp_any *resp) {
     setting_timeout = 0;
     setting_disable_resp = false;
-    setting_led_count = 66;
+    setting_led_count = JVS_MAX_LEDS;
 
     wipe_leds();
 }
@@ -134,6 +147,23 @@ void led_set(jvs_req_any *req, jvs_resp_any *resp) {
     }
 
     FastLED.show();
+
+}
+
+void led_set_aux(jvs_req_any *req, jvs_resp_any *resp) {
+
+#if AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0
+    for (uint32_t i = 0; i < AUX1_NUM_LEDS; i++){
+        uint8_t input_offset = i * 3;
+        if (input_offset < req->len - 3) {
+            leds_aux1[i].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
+                           req->payload[input_offset + setting_channels[2]]);
+        }
+    }
+    FastLED.show();
+#elif AUX1_OUTPUT_PIN > 0
+    digitalWrite(AUX1_OUTPUT_PIN, req->payload[0] != 0 ? HIGH : LOW);
+#endif
 
 }
 
@@ -198,8 +228,14 @@ void led_set_channels(jvs_req_any *req, jvs_resp_any *resp) {
 void setup() {
 
     CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS);
+    if (AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0) {
+        CFastLED::addLeds<AUX1_LED_BOARD, AUX1_OUTPUT_PIN>(leds_aux1, AUX1_NUM_LEDS);
+    }
     //FastLED.setBrightness(LED_BRIGHTNESS);
     FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_CURRENT);
+    if (AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0) {
+        FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_CURRENT + AUX1_MAX_CURRENT);
+    }
 
     leds[0] = CRGB::Red;
     FastLED.show();
@@ -218,6 +254,7 @@ void setup() {
     Serial.begin(115200);
 
     leds[0] = CRGB::Green;
+    leds_aux1[0] = CRGB::Green;
     FastLED.show();
     delay(100);
 
@@ -277,6 +314,8 @@ void loop() {
             led_set_translation(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_CHANNELS){
             led_set_channels(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_AUXILIARY_OUTPUT){
+            led_set_aux(&req, &resp);
         } else {
 #if UNKNOWN_IS_OK
 #else
