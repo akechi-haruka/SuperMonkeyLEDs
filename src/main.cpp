@@ -7,21 +7,34 @@
 #include "avr/wdt.h"
 
 /// CONFIGURATION START
+
+// The number of physical LEDs connected to the board
 #define NUM_LEDS 66
+// The offset from the beginning of how many LEDs should be skipped
+#define LED_SHIFT 0
+// The data pin for the LED strip
 #define LED_PIN 7
+// unused
 #define LED_BRIGHTNESS 5
+// The maximum current in mA that may be taken before brightness will be reduced. Should not be changed.
 #define MAX_CURRENT 750
+// The FastLED constant for the board used.
 #define LED_BOARD WS2812B
 
-#define AUX1_IS_STRIP 1
-#define AUX1_LED_BOARD WS2812B
-#define AUX1_NUM_LEDS 4
-#define AUX1_MAX_CURRENT 40
+// The output PIN for an extra output (ex. the camera LED in SAOAC:DE). This can only be used by mods that support it.
 #define AUX1_OUTPUT_PIN 6
+// Whether the extra output is another FastLED strip (1) or a single LED (0)
+#define AUX1_IS_STRIP 1
+// If the extra output is a strip, this is the FastLED constant for it.
+#define AUX1_LED_BOARD WS2812B
+// If the extra output is a strip, this is the amount of LEDs.
+#define AUX1_NUM_LEDS 4
+// If the extra output is a strip, this is the maximum current in mA that may be taken before brightness will be reduced. Should not be changed.
+#define AUX1_MAX_CURRENT 40
 /// CONFIGURATION END
 
 
-struct CRGB leds[NUM_LEDS];
+struct CRGB leds[NUM_LEDS + LED_SHIFT];
 struct CRGB leds_aux1[AUX1_NUM_LEDS];
 #define LED_OFF 0xFF
 #define LED_ON 0xFE
@@ -95,7 +108,7 @@ void led_timeout(jvs_req_any *req, jvs_resp_any *resp) {
 }
 
 void wipe_leds(){
-    memset(&leds, 0, sizeof(CRGB) * NUM_LEDS);
+    memset(&leds, 0, sizeof(CRGB) * (NUM_LEDS + LED_SHIFT));
 #if AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0
     memset(&leds_aux1, 0, sizeof(CRGB) * AUX1_NUM_LEDS);
 #elif AUX1_OUTPUT_PIN > 0
@@ -134,13 +147,13 @@ void led_set(jvs_req_any *req, jvs_resp_any *resp) {
     for (uint32_t i = 0; i < sizeof(translation_table) && i < setting_led_count; i++){
         uint8_t translation = translation_table[i];
         if (translation == LED_OFF){
-            leds[i].setRGB(0, 0, 0);
+            leds[i + LED_SHIFT].setRGB(0, 0, 0);
         } else if (translation == LED_ON){
-            leds[i].setRGB(255, 255, 255);
+            leds[i + LED_SHIFT].setRGB(255, 255, 255);
         } else {
             uint8_t input_offset = translation * 3;
             if (input_offset < req->len - 3) {
-                leds[i].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
+                leds[i + LED_SHIFT].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
                                req->payload[input_offset + setting_channels[2]]);
             }
         }
@@ -227,7 +240,7 @@ void led_set_channels(jvs_req_any *req, jvs_resp_any *resp) {
 
 void setup() {
 
-    CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS);
+    CFastLED::addLeds<LED_BOARD, LED_PIN>(leds, NUM_LEDS + LED_SHIFT);
     if (AUX1_IS_STRIP && AUX1_OUTPUT_PIN > 0) {
         CFastLED::addLeds<AUX1_LED_BOARD, AUX1_OUTPUT_PIN>(leds_aux1, AUX1_NUM_LEDS);
     }
