@@ -47,10 +47,21 @@ struct CRGB leds_aux1[AUX1_NUM_LEDS];
 #define BOARD_NAME_LEN 8
 #define CHIP_NUM_LEN 5
 
+#define FADE_TIMER_DEFAULT 80
+
+#define FADE_MODE_NONE 0
+#define FADE_MODE_DECREASE 1
+#define FADE_MODE_INCREASE 2
+
 static uint16_t setting_timeout = 0;
 static int32_t timeout_counter = 0;
 static uint16_t setting_led_count = JVS_MAX_LEDS;
 static bool setting_disable_resp = false;
+static uint8_t fade_mode = FADE_MODE_NONE;
+static int16_t fade_timer_max = FADE_TIMER_DEFAULT;
+static int16_t fade_timer = FADE_TIMER_DEFAULT;
+static int16_t fade_modifier = 1;
+static int16_t fade_value = 255;
 
 static uint8_t translation_table[NUM_LEDS];
 static uint16_t setting_fw_sum = 0xFFFF;
@@ -121,6 +132,11 @@ void led_reset(jvs_req_any *req, jvs_resp_any *resp) {
     setting_timeout = 0;
     setting_disable_resp = false;
     setting_led_count = JVS_MAX_LEDS;
+    fade_mode = FADE_MODE_NONE;
+    fade_timer = FADE_TIMER_DEFAULT;
+    fade_timer_max = FADE_TIMER_DEFAULT;
+    fade_modifier = 1;
+    fade_value = 255;
 
     wipe_leds();
 }
@@ -142,8 +158,7 @@ void led_disable_response(jvs_req_any *req, jvs_resp_any *resp) {
     *(resp->payload) = req->payload[0];
 }
 
-void led_set(jvs_req_any *req, jvs_resp_any *resp) {
-
+void led_set_direct(jvs_req_any *req) {
     for (uint32_t i = 0; i < sizeof(translation_table) && i < setting_led_count; i++){
         uint8_t translation = translation_table[i];
         if (translation == LED_OFF){
@@ -159,8 +174,38 @@ void led_set(jvs_req_any *req, jvs_resp_any *resp) {
         }
     }
 
-    FastLED.show();
+}
 
+void led_set(jvs_req_any *req, jvs_resp_any *resp) {
+
+    led_set_direct(req);
+
+    fade_mode = FADE_MODE_NONE;
+    fade_value = 255;
+
+    FastLED.setBrightness(255);
+    FastLED.show();
+}
+
+void led_set_fade(jvs_req_any *req, jvs_resp_any *resp) {
+    led_set_direct(req);
+    fade_mode = FADE_MODE_DECREASE;
+    fade_value = 255;
+
+    FastLED.setBrightness(255);
+    FastLED.show();
+}
+void led_set_fade_pattern(jvs_req_any *req, jvs_resp_any *resp) {
+    uint8_t depth = req->payload[0]; // 48
+    uint8_t cycle = req->payload[1]; // 2
+
+    fade_mode = FADE_MODE_DECREASE;
+    fade_value = 255;
+
+    // TODO: I truly have no idea what these variables even mean
+    fade_timer = depth;
+    fade_timer_max = depth;
+    fade_modifier = cycle * 2;
 }
 
 void led_set_aux(jvs_req_any *req, jvs_resp_any *resp) {
@@ -311,6 +356,10 @@ void loop() {
             led_disable_response(&req, &resp);
         } else if (req.cmd == LED_CMD_SET_LED){
             led_set(&req, &resp);
+        } else if (req.cmd == LED_CMD_SET_LED_FADE){
+            led_set_fade(&req, &resp);
+        } else if (req.cmd == LED_CMD_SET_LED_FADE_PATTERN){
+            led_set_fade_pattern(&req, &resp);
         } else if (req.cmd == LED_CMD_SET_COUNT){
             led_set_count(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_RESET){
@@ -348,6 +397,32 @@ void loop() {
         timeout_counter -= DELAY;
         if (timeout_counter < 0) {
             wipe_leds();
+        }
+    }
+
+    if (fade_mode != 0) {
+        if (fade_timer > 0) {
+            fade_timer -= DELAY;
+        }
+        if (fade_timer <= 0) {
+            if (fade_mode == FADE_MODE_DECREASE) {
+                fade_value -= fade_modifier;
+                if (fade_value <= 0) {
+                    fade_value = 0;
+                    fade_mode = FADE_MODE_INCREASE;
+                }
+            } else if (fade_mode == FADE_MODE_INCREASE) {
+                fade_value += fade_modifier;
+                if (fade_value >= 255) {
+                    fade_value = 255;
+                    fade_mode = FADE_MODE_DECREASE;
+                }
+            }
+
+            FastLED.setBrightness(fade_value);
+            FastLED.show();
+
+            fade_timer = fade_timer_max;
         }
     }
     delay(DELAY);
