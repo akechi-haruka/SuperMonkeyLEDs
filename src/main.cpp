@@ -9,6 +9,10 @@
 /// CONFIGURATION START
 
 // The number of physical LEDs connected to the board
+// Please note that the sega protocol (and thus the games) only expect to control up to 66 LEDs.
+// If you want to change that behaviour, for example by duplicating every LED, use Sega835Cmd,
+// which can be found here: https://github.com/akechi-haruka/SEGA835Lib
+// by running it with --set-monkey-translation before the game in question.
 #define NUM_LEDS 66
 // The offset from the beginning of how many LEDs should be skipped
 #define LED_SHIFT 0
@@ -16,21 +20,23 @@
 #define LED_PIN 7
 // unused
 #define LED_BRIGHTNESS 5
-// The maximum current in mA that may be taken before brightness will be reduced. Should not be changed.
-#define MAX_CURRENT 750
+// The maximum current in mA that may be taken before brightness will be reduced.
+// For a genuine Arduino leonardo, the absolute maximum is 400mA on USB and 900mA on external
+#define MAX_CURRENT 300
 // The FastLED constant for the board used.
 #define LED_BOARD WS2812B
 
-// The output PIN for an extra output (ex. the camera LED in SAOAC:DE). This can only be used by mods that support it.
-#define AUX1_OUTPUT_PIN 6
+// The output PIN for an extra output (ex. the camera LED in SAOAC:DE). This can only be used by mods that support it. 0 to disable all AUX1_* settings
+#define AUX1_OUTPUT_PIN 0
 // Whether the extra output is another FastLED strip (1) or a single LED (0)
 #define AUX1_IS_STRIP 1
 // If the extra output is a strip, this is the FastLED constant for it.
 #define AUX1_LED_BOARD WS2812B
 // If the extra output is a strip, this is the amount of LEDs.
-#define AUX1_NUM_LEDS 4
+#define AUX1_NUM_LEDS 0
 // If the extra output is a strip, this is the maximum current in mA that may be taken before brightness will be reduced. Should not be changed.
 #define AUX1_MAX_CURRENT 40
+
 /// CONFIGURATION END
 
 
