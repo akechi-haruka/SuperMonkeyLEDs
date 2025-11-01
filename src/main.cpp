@@ -165,13 +165,13 @@ void led_disable_response(jvs_req_any *req, jvs_resp_any *resp) {
 }
 
 void led_set_direct(jvs_req_any *req) {
-    for (uint32_t i = 0; i < sizeof(translation_table) && i < setting_led_count; i++){
+    for (uint32_t i = 0; i < sizeof(translation_table); i++){
         uint8_t translation = translation_table[i];
         if (translation == LED_OFF){
             leds[i + LED_SHIFT].setRGB(0, 0, 0);
         } else if (translation == LED_ON){
             leds[i + LED_SHIFT].setRGB(255, 255, 255);
-        } else {
+        } else if (translation < setting_led_count) {
             uint8_t input_offset = translation * 3;
             if (input_offset < req->len - 3) {
                 leds[i + LED_SHIFT].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
@@ -236,7 +236,7 @@ void led_set_count(jvs_req_any *req, jvs_resp_any *resp) {
     setting_led_count = req->payload[0];
 
     resp->len += 1;
-    *(resp->payload) = min(req->payload[0], NUM_LEDS);
+    *(resp->payload) = min(req->payload[0], JVS_MAX_LEDS);
 }
 
 void led_set_sum(jvs_req_any *req, jvs_resp_any *resp) {
@@ -271,14 +271,18 @@ void led_reset_monkey(jvs_req_any *req, jvs_resp_any *resp) {
 
 void led_set_translation(jvs_req_any *req, jvs_resp_any *resp) {
 
-    memset(translation_table, LED_OFF, sizeof(translation_table));
+    uint8_t start_index = req->payload[0];
 
-    for (uint32_t i = 0; i < sizeof(translation_table) && i < (uint32_t)(req->len - 1); i++){
+    if (start_index == 0) {
+        memset(translation_table, LED_OFF, sizeof(translation_table));
+    }
+
+    for (uint32_t i = 1; i < sizeof(translation_table) && i < (uint32_t)(req->len - 1); i++){
         uint8_t val = req->payload[i];
-        if (val < NUM_LEDS || val == LED_ON) {
-            translation_table[i] = val;
+        if (val < JVS_MAX_LEDS || val == LED_ON) {
+            translation_table[start_index + i - 1] = val;
         } else {
-            translation_table[i] = LED_OFF;
+            translation_table[start_index + i - 1] = LED_OFF;
         }
     }
 }
@@ -316,6 +320,19 @@ void setup() {
     delay(100);
 
     Serial.begin(115200);
+
+    leds[0] = CRGB::Blue;
+    FastLED.show();
+    delay(100);
+
+    for (int i = 0; i < NUM_LEDS; i++) {
+        if (i > 0) {
+            leds[i-1] = CRGB::Black;
+        }
+        leds[i] = CRGB::Blue;
+        FastLED.show();
+        delay(50);
+    }
 
     leds[0] = CRGB::Green;
     leds_aux1[0] = CRGB::Green;
