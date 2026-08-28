@@ -13,7 +13,7 @@
 // If you want to change that behaviour, for example by duplicating every LED, use Sega835Cmd,
 // which can be found here: https://github.com/akechi-haruka/SEGA835Lib
 // by running it with --set-monkey-translation before the game in question.
-#define NUM_LEDS 66
+#define NUM_LEDS 138
 // The offset from the beginning of how many LEDs should be skipped
 #define LED_SHIFT 0
 // The data pin for the LED strip
@@ -27,13 +27,13 @@
 #define LED_BOARD WS2812B
 
 // The output PIN for an extra output (ex. the camera LED in SAOAC:DE). This can only be used by mods that support it. 0 to disable all AUX1_* settings
-#define AUX1_OUTPUT_PIN 0
+#define AUX1_OUTPUT_PIN 6
 // Whether the extra output is another FastLED strip (1) or a single LED (0)
 #define AUX1_IS_STRIP 1
 // If the extra output is a strip, this is the FastLED constant for it.
 #define AUX1_LED_BOARD WS2812B
 // If the extra output is a strip, this is the amount of LEDs.
-#define AUX1_NUM_LEDS 0
+#define AUX1_NUM_LEDS 10
 // If the extra output is a strip, this is the maximum current in mA that may be taken before brightness will be reduced. Should not be changed.
 #define AUX1_MAX_CURRENT 40
 
@@ -49,6 +49,7 @@ struct CRGB leds_aux1[AUX1_NUM_LEDS];
 #define DELAY 5
 
 #define UNKNOWN_IS_OK 0
+#define LOCK_UP_ON_UNKNOWN 0
 
 #define BOARD_NAME_LEN 8
 #define CHIP_NUM_LEN 5
@@ -69,18 +70,22 @@ static int16_t fade_timer = FADE_TIMER_DEFAULT;
 static int16_t fade_modifier = 1;
 static int16_t fade_value = 255;
 
-static uint8_t translation_table[NUM_LEDS];
+static uint8_t translation_table[NUM_LEDS] = {};
 static uint16_t setting_fw_sum = 0xFFFF;
-static char board_name[BOARD_NAME_LEN];
-static char chip_num[CHIP_NUM_LEN];
+static char board_name[BOARD_NAME_LEN] = {};
+static char chip_num[CHIP_NUM_LEN] = {};
 static uint16_t setting_fw_ver = 0xFF;
 static uint8_t setting_channels[3];
+static uint8_t setting_appli_mode = 1;
+
+static uint8_t eeprom[255] = {};
 
 void reset_monkey(){
     strncpy(chip_num, "6710 ", CHIP_NUM_LEN);
     strncpy(board_name, "MONKEY06", BOARD_NAME_LEN);
     setting_fw_sum = 0xFFFF;
     setting_fw_ver = 0xFF;
+    setting_appli_mode = 1;
 
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         translation_table[i] = i;
@@ -94,8 +99,13 @@ void led_get_board_info(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 18;
     resp->report = 1;
     strcpy((char*)resp->payload, board_name);
-    *(resp->payload + 8) = 0x0A;
-    strcpy((char*)resp->payload + 9, chip_num);
+    if (chip_num[0] != 0x20) {
+        *(resp->payload + 8) = 0x0A;
+        strcpy((char*)resp->payload + 9, chip_num);
+    } else {
+        *(resp->payload + 8) = 0xFF;
+        *(resp->payload + 9) = setting_fw_ver;
+    }
     *(resp->payload + 14) = 0xFF;
     *(resp->payload + 15) = setting_fw_ver;
     *(resp->payload + 16) = 0;
@@ -110,7 +120,7 @@ void led_get_firm_sum(jvs_req_any *req, jvs_resp_any *resp) {
 
 void led_get_protocol_ver(jvs_req_any *req, jvs_resp_any *resp) {
     resp->len += 3;
-    *(resp->payload) = 0x01;
+    *(resp->payload) = setting_appli_mode;
     *(resp->payload + 1) = 0x01;
     *(resp->payload + 2) = 0x04;
 }
@@ -164,7 +174,7 @@ void led_disable_response(jvs_req_any *req, jvs_resp_any *resp) {
     *(resp->payload) = req->payload[0];
 }
 
-void led_set_direct(jvs_req_any *req) {
+void led_set_direct(uint8_t* data, int len, int channels) {
     for (uint32_t i = 0; i < sizeof(translation_table); i++){
         uint8_t translation = translation_table[i];
         if (translation == LED_OFF){
@@ -172,10 +182,13 @@ void led_set_direct(jvs_req_any *req) {
         } else if (translation == LED_ON){
             leds[i + LED_SHIFT].setRGB(255, 255, 255);
         } else if (translation < setting_led_count) {
-            uint8_t input_offset = translation * 3;
-            if (input_offset < req->len - 3) {
-                leds[i + LED_SHIFT].setRGB(req->payload[input_offset + setting_channels[0]], req->payload[input_offset + setting_channels[1]],
-                               req->payload[input_offset + setting_channels[2]]);
+            uint8_t input_offset = translation * channels;
+            if (input_offset < len - channels) {
+                if (channels == 3) {
+                    leds[i + LED_SHIFT].setRGB(data[input_offset + setting_channels[0]], data[input_offset + setting_channels[1]], data[input_offset + setting_channels[2]]);
+                } else {
+                    leds[i + LED_SHIFT].setRGB(data[input_offset], data[input_offset], data[input_offset]);
+                }
             }
         }
     }
@@ -184,7 +197,7 @@ void led_set_direct(jvs_req_any *req) {
 
 void led_set(jvs_req_any *req, jvs_resp_any *resp) {
 
-    led_set_direct(req);
+    led_set_direct(req->payload, req->len, 3);
 
     fade_mode = FADE_MODE_NONE;
     fade_value = 255;
@@ -194,7 +207,7 @@ void led_set(jvs_req_any *req, jvs_resp_any *resp) {
 }
 
 void led_set_fade(jvs_req_any *req, jvs_resp_any *resp) {
-    led_set_direct(req);
+    led_set_direct(req->payload, req->len, 3);
     fade_mode = FADE_MODE_DECREASE;
     fade_value = 255;
 
@@ -291,6 +304,30 @@ void led_set_channels(jvs_req_any *req, jvs_resp_any *resp) {
     for (int i = 0; i < 3; i++){
         setting_channels[i] = req->payload[i];
     }
+}
+
+void led_set_appli(jvs_req_any *req, jvs_resp_any *resp) {
+    setting_appli_mode = req->payload[0];
+}
+
+void led_eeprom_read(jvs_req_any *req, jvs_resp_any *resp) {
+    resp->len += 1;
+    *(resp->payload) = eeprom[req->payload[0]];
+}
+
+void led_eeprom_write(jvs_req_any *req, jvs_resp_any *resp) {
+    uint8_t addr = req->payload[0];
+    eeprom[addr] = req->payload[1];
+}
+
+void led_set_fet(jvs_req_any *req, jvs_resp_any *resp) {
+    led_set_direct(req->payload, req->len, 1);
+
+    fade_mode = FADE_MODE_NONE;
+    fade_value = 255;
+
+    FastLED.setBrightness(255);
+    FastLED.show();
 }
 
 void setup() {
@@ -401,10 +438,35 @@ void loop() {
             led_set_channels(&req, &resp);
         } else if (req.cmd == LED_CMD_MONKEY_SET_AUXILIARY_OUTPUT){
             led_set_aux(&req, &resp);
+        } else if (req.cmd == LED_CMD_MONKEY_SET_APPLI_MODE){
+            led_set_appli(&req, &resp);
+        } else if (req.cmd == LED_15070_CMD_GS_UPDATE){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_SET_MULTI_FLASH_8BIT){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_SET_FET_OUTPUT){
+            led_set_fet(&req, &resp);
+        } else if (req.cmd == LED_15070_CMD_SET_NORMAL_8BIT){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_SET_MULTI_FADE_8BIT){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_SET_DC_DATA){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_DC_UPDATE){
+            // maimai-only; noop
+        } else if (req.cmd == LED_15070_CMD_EEPROM_READ){
+            led_eeprom_read(&req, &resp);
+        } else if (req.cmd == LED_15070_CMD_EEPROM_WRITE){
+            led_eeprom_write(&req, &resp);
         } else {
 #if UNKNOWN_IS_OK
 #else
             jvs_write_failure(E_NOTIMPL, req.cmd, &req);
+#if LOCK_UP_ON_UNKNOWN
+            Serial.write("UNKNOWN PACKET ID: ");
+            Serial.write(req.cmd);
+            delay(999999);
+#endif
             return;
 #endif
         }

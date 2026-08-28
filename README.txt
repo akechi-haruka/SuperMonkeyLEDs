@@ -75,6 +75,12 @@ LED L: 50,51
 LED R: 52,53
 LED CENTER: 54-61
 
+maimai DX:
+
+?: 0
+?: 1
+?: 2
+
 Examples (for an LED strip starting at the bottom right of a 32 inch monitor, wrapping around counter-clockwise):
 
 KCA: sega835cmd led --set-monkey-channels Green,Red,Blue --set-monkey-translation 0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,6,6,6,6,7,7,7,7,8,8,8,8,9,9,9,9,10,10,10,10,11,11,11,11,12,12,12,12,13,13,13,13,14,14,14,14,15,15,15,15 0,0,0
@@ -85,3 +91,4 @@ FGO: sega835cmd led --set-monkey-translation 13,13,13,13,13,13,13,13,3,3,3,3,3,3
 SAOAC:DE: sega835cmd led --set-monkey-translation 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 0,0,0
 Synchronica: sega835cmd led --monkey-reset --set-monkey-translation 53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,53,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0 0,0,0
 Kemono Friends 3: sega835cmd led --monkey-reset --set-monkey-checksum 43603 --set-monkey-version 160 --set-monkey-board-name 15093-04 --set-monkey-chip-number 6704 0,0,0
+maimai DX: sega835cmd led --monkey-reset --set-monkey-board-name 15070-04 --set-monkey-chip-number "" --set-monkey-version 144 --set-monkey-checksum 44535 --set-monkey-appli-mode 0 --set-monkey-translation 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 255,255,255
